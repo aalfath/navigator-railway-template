@@ -3,8 +3,29 @@
 //   node db.mjs users         -> prints the number of accounts (0 if the table doesn't exist yet)
 //   node db.mjs role <email>  -> prints the role of that account
 import { createRequire } from "node:module";
-const require = createRequire(new URL("../server.js", import.meta.url));
-const postgres = require("postgres");
+import { readdirSync } from "node:fs";
+
+// Next's standalone output keeps pnpm's layout, where `postgres` may live only under
+// node_modules/.pnpm/postgres@<version>/node_modules/postgres.
+function loadPostgres() {
+  const require = createRequire(new URL("../server.js", import.meta.url));
+  try {
+    return require("postgres");
+  } catch {}
+  for (const root of ["/app/node_modules/.pnpm", "/app/apps/web/node_modules/.pnpm"]) {
+    let dirs = [];
+    try {
+      dirs = readdirSync(root).filter((d) => /^postgres@\d/.test(d)).sort().reverse();
+    } catch {}
+    for (const d of dirs) {
+      try {
+        return require(`${root}/${d}/node_modules/postgres`);
+      } catch {}
+    }
+  }
+  throw new Error("could not find the bundled postgres driver");
+}
+const postgres = loadPostgres();
 
 const url = process.env.POSTGRES_URL || process.env.DATABASE_URL;
 const [cmd, arg] = process.argv.slice(2);
