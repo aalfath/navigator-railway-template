@@ -22,6 +22,19 @@ The app keeps no files of its own: everything lives in Postgres. File uploads
 (attachments, avatars, generated images) need Supabase Storage and stay off
 until you add it.
 
+## After deploy
+
+1. Open the Navigator service's public URL and sign in with `ADMIN_EMAIL` and
+   the `ADMIN_PASSWORD` from the service's **Variables** tab. That account is
+   the administrator; public sign-up is closed.
+2. Pick a model in the chat box and start chatting. With an AI Gateway key,
+   every model in the menu works.
+3. Optional: your own OpenAI-compatible server (vLLM, LM Studio, Ollama, a
+   provider's `/v1` endpoint) can be added per user under **Local Models** in
+   the model menu.
+4. Add more users from the admin area (`/admin/users`), or set
+   `DISABLE_SIGN_UP=0` while they sign up.
+
 ## Variables
 
 | Variable | Default | |
