@@ -42,6 +42,8 @@ COPY --from=builder /app/apps/web/src/lib/db/migrations ./apps/web/src/lib/db/mi
 COPY --chmod=755 scripts/start.sh /usr/local/bin/navigator-start
 # Helpers live next to server.js so they can load the app's bundled `postgres` driver.
 COPY --chmod=755 scripts/bootstrap-admin.mjs scripts/db.mjs ./apps/web/railway/
+# The `postgres` driver from upstream's lockfile (no dependencies of its own), for db.mjs.
+COPY --from=builder /app/node_modules/.pnpm/postgres@3.4.7/node_modules/postgres ./apps/web/railway/node_modules/postgres
 USER nextjs
 EXPOSE 3000
 CMD ["/usr/local/bin/navigator-start"]
