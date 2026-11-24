@@ -41,18 +41,14 @@ if [ -z "$DB_URL" ]; then
   log "POSTGRES_URL is not set"; exit 1
 fi
 
+H=/app/apps/web/railway
 # Wait for the database (its private DNS name can take a minute on a first deploy).
-i=0
-until psql "$DB_URL" -qtAc 'select 1' >/dev/null 2>&1; do
-  i=$((i + 1))
-  if [ "$i" -ge 90 ]; then log "Postgres did not answer within 180 s"; exit 1; fi
-  sleep 2
-done
+node $H/db.mjs wait || exit 1
 
 # First boot: create the admin account on a loopback-only server, before the public
 # server starts with sign-up closed. Failure stops the service (exit 1).
-users=$(psql "$DB_URL" -qtAc 'select count(*) from "user"' 2>/dev/null || echo 0)
-if [ "${users:-0}" = 0 ]; then
+users=$(node $H/db.mjs users) || exit 1
+if [ "$users" = 0 ]; then
   if [ -z "${ADMIN_EMAIL:-}" ] || [ -z "${ADMIN_PASSWORD:-}" ]; then
     log "no accounts yet and ADMIN_EMAIL/ADMIN_PASSWORD are not set"; exit 1
   fi
@@ -60,12 +56,12 @@ if [ "${users:-0}" = 0 ]; then
   BOOTSTRAP_PORT=3999
   DISABLE_SIGN_UP=0 HOSTNAME=127.0.0.1 PORT=$BOOTSTRAP_PORT node apps/web/server.js &
   tmp=$!
-  BOOTSTRAP_PORT=$BOOTSTRAP_PORT node /usr/local/lib/navigator/bootstrap-admin.mjs
+  BOOTSTRAP_PORT=$BOOTSTRAP_PORT node $H/bootstrap-admin.mjs
   rc=$?
   kill -TERM "$tmp" 2>/dev/null
   wait "$tmp" 2>/dev/null
   if [ "$rc" -ne 0 ]; then exit 1; fi
-  role=$(psql "$DB_URL" -qtAc "select role from \"user\" where lower(email) = lower('$(printf %s "$ADMIN_EMAIL" | sed "s/'/''/g")')" 2>/dev/null)
+  role=$(node $H/db.mjs role "$ADMIN_EMAIL")
   if [ "$role" != admin ]; then log "admin account has role '$role', expected admin"; exit 1; fi
 fi
 

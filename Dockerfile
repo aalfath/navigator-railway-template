@@ -7,13 +7,12 @@ FROM ${NODE_IMAGE} AS builder
 # Release v2.0.0 of https://github.com/keinsaasforever/better-chatbot
 ARG NAVIGATOR_VERSION=v2.0.0
 ARG NAVIGATOR_COMMIT=c646445baa420ec91e48a4a5860b4accf3b35236
-RUN apk add --no-cache git libc6-compat
+# GitHub's archive of the release commit; its top folder is named after the commit.
+ADD https://github.com/keinsaasforever/better-chatbot/archive/${NAVIGATOR_COMMIT}.tar.gz /tmp/src.tar.gz
 WORKDIR /app
-RUN git init -q . \
- && git remote add origin https://github.com/keinsaasforever/better-chatbot.git \
- && git fetch -q --depth 1 origin "refs/tags/${NAVIGATOR_VERSION}" \
- && git checkout -q FETCH_HEAD \
- && test "$(git rev-parse HEAD)" = "${NAVIGATOR_COMMIT}"
+RUN tar -xzf /tmp/src.tar.gz -C /app --strip-components=1 \
+ && test "$(tar -tzf /tmp/src.tar.gz | head -1)" = "better-chatbot-${NAVIGATOR_COMMIT}/" \
+ && rm /tmp/src.tar.gz
 ENV DOCKER_BUILD=1 \
     NEXT_STANDALONE_OUTPUT=true \
     NEXT_TELEMETRY_DISABLED=1 \
@@ -29,9 +28,7 @@ FROM ${NODE_IMAGE} AS runner
 ARG NAVIGATOR_VERSION=v2.0.0
 LABEL org.opencontainers.image.source="https://github.com/aalfath/navigator-railway-template" \
       org.opencontainers.image.version="${NAVIGATOR_VERSION}"
-# psql: first-boot check for an existing admin account
-RUN apk add --no-cache postgresql17-client \
- && addgroup --system --gid 1001 nodejs \
+RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 nextjs
 WORKDIR /app
 ENV NODE_ENV=production \
@@ -43,7 +40,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/
 COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder /app/apps/web/src/lib/db/migrations ./apps/web/src/lib/db/migrations
 COPY --chmod=755 scripts/start.sh /usr/local/bin/navigator-start
-COPY --chmod=644 scripts/bootstrap-admin.mjs /usr/local/lib/navigator/bootstrap-admin.mjs
+# Helpers live next to server.js so they can load the app's bundled `postgres` driver.
+COPY --chmod=644 scripts/bootstrap-admin.mjs scripts/db.mjs ./apps/web/railway/
 USER nextjs
 EXPOSE 3000
 CMD ["/usr/local/bin/navigator-start"]
